@@ -60,8 +60,9 @@ class StockCNN(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-
-
+LEARNING_RATE = 0.0001
+EPOCHS = 10
+BATCH_SIZE = 128
 
 if __name__=="__main__":
     # Dataset transforms
@@ -76,10 +77,13 @@ if __name__=="__main__":
 
     # Load dataset
     train_dataset = datasets.ImageFolder(root='./data/image/train', transform=train_transform)
-    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=1)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
     test_dataset = datasets.ImageFolder(root='./data/image/test', transform=test_transform)
-    test_dataloader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=1)
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 
+    print(f"Train dataset size: {len(train_dataloader)}")
+    print(f"Test dataset size: {len(test_dataloader)}")
+    
     for batch_num, (feats, labels) in enumerate(train_dataloader):
         print(feats.shape)
         print(labels)
@@ -89,20 +93,19 @@ if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = StockCNN().to(device)
     criterion = nn.NLLLoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # Early stopping params
     early_stop_patience = 2
     best_loss = float('inf')
     patience_counter = 0
-    num_epochs = 100
     train_loss_list, acc_list = [], []
 
     logging.info("Training...")
     
-    for epoch in range(num_epochs):
+    for epoch in range(EPOCHS):
         model.train()
-        total_loss, correct, total = 0, 0, 0
+        total_loss, correct, total, batch_number = 0, 0, 0 ,0
         for imgs, labels in train_dataloader:
             imgs, labels = imgs.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -113,7 +116,7 @@ if __name__=="__main__":
             
             accuracy_rate = torch.sum(torch.argmax(outputs, dim=1) == labels).item() / len(labels)
             logging.info(f"Epoch {epoch+1}, Batch {batch_num+1}: Loss={loss.item():.4f}, Accuracy={accuracy_rate:.4f}")
-            
+            batch_num += 1
             
             total_loss += loss.item() * imgs.size(0)
             _, predicted = torch.max(outputs, 1)

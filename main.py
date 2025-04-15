@@ -1,4 +1,5 @@
 import os
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,6 +8,15 @@ import torchvision
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 import matplotlib.pyplot as plt
+
+logging.basicConfig(
+    level=logging.INFO,  # 设置日志级别为 INFO
+    format='%(asctime)s - %(levelname)s - %(message)s',  # 日志格式
+    handlers=[
+        logging.FileHandler("training.log"),  # 将日志写入文件
+        logging.StreamHandler()  # 同时输出到控制台
+    ]
+)
 
 # CNN with BatchNorm, Dropout, Xavier init, Adam, EarlyStopping
 class StockCNN(nn.Module):
@@ -85,10 +95,10 @@ if __name__=="__main__":
     early_stop_patience = 2
     best_loss = float('inf')
     patience_counter = 0
-    num_epochs = 10
+    num_epochs = 100
     train_loss_list, acc_list = [], []
 
-    print("Training...")
+    logging.info("Training...")
     
     for epoch in range(num_epochs):
         model.train()
@@ -102,7 +112,8 @@ if __name__=="__main__":
             optimizer.step()
             
             accuracy_rate = torch.sum(torch.argmax(outputs, dim=1) == labels).item() / len(labels)
-            print(f"Epoch {epoch+1}, Batch {batch_num+1}: Loss={loss.item():.4f}, Accuracy={accuracy_rate:.4f}")
+            logging.info(f"Epoch {epoch+1}, Batch {batch_num+1}: Loss={loss.item():.4f}, Accuracy={accuracy_rate:.4f}")
+            
             
             total_loss += loss.item() * imgs.size(0)
             _, predicted = torch.max(outputs, 1)
@@ -114,7 +125,8 @@ if __name__=="__main__":
         train_loss_list.append(avg_loss)
         acc_list.append(acc)
 
-        print(f"Epoch {epoch+1}: Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+        logging.info(f"Epoch {epoch+1}: Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+        
 
         # Early stopping
         if avg_loss < best_loss:
@@ -123,7 +135,7 @@ if __name__=="__main__":
         else:
             patience_counter += 1
             if patience_counter >= early_stop_patience:
-                print("Early stopping triggered.")
+                logging.info("Early stopping triggered.")
                 break
 
     # Final evaluation
@@ -136,7 +148,7 @@ if __name__=="__main__":
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    print(f"Test Accuracy: {correct / total:.4f}")
+    logging.info(f"Test Accuracy: {correct / total:.4f}")
 
     # Plot loss and accuracy
     plt.figure(figsize=(10,4))
@@ -147,3 +159,4 @@ if __name__=="__main__":
     plt.plot(acc_list, label="Train Accuracy")
     plt.legend()
     plt.show()
+    logging.info("Finished training!")

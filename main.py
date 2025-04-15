@@ -8,26 +8,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 import matplotlib.pyplot as plt
 
-# Dataset transforms
-train_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize([0.229, 0.224, 0.225],  [0.485, 0.456, 0.406])
-])
-test_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize([0.229, 0.224, 0.225],  [0.485, 0.456, 0.406])
-])
-
-# Load dataset
-train_dataset = datasets.ImageFolder(root='./data/image/train', transform=train_transform)
-train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-test_dataset = datasets.ImageFolder(root='./data/image/test', transform=test_transform)
-test_dataloader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
-
-for batch_num, (feats, labels) in enumerate(train_dataloader):
-    print(feats.shape)
-    print(labels)
-    break
 # CNN with BatchNorm, Dropout, Xavier init, Adam, EarlyStopping
 class StockCNN(nn.Module):
     def __init__(self):
@@ -71,70 +51,99 @@ class StockCNN(nn.Module):
                     nn.init.zeros_(m.bias)
 
 
-# Training config
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = StockCNN().to(device)
-criterion = nn.NLLLoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
-# Early stopping params
-early_stop_patience = 2
-best_loss = float('inf')
-patience_counter = 0
-num_epochs = 100
-train_loss_list, acc_list = [], []
 
-for epoch in range(num_epochs):
-    model.train()
-    total_loss, correct, total = 0, 0, 0
-    for imgs, labels in train_dataloader:
-        imgs, labels = imgs.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = model(imgs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+if __name__=="__main__":
+    # Dataset transforms
+    train_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.229, 0.224, 0.225],  [0.485, 0.456, 0.406])
+    ])
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.229, 0.224, 0.225],  [0.485, 0.456, 0.406])
+    ])
 
-        total_loss += loss.item() * imgs.size(0)
-        _, predicted = torch.max(outputs, 1)
-        correct += (predicted == labels).sum().item()
-        total += labels.size(0)
+    # Load dataset
+    train_dataset = datasets.ImageFolder(root='./data/image/train', transform=train_transform)
+    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=1)
+    test_dataset = datasets.ImageFolder(root='./data/image/test', transform=test_transform)
+    test_dataloader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=1)
 
-    avg_loss = total_loss / total
-    acc = correct / total
-    train_loss_list.append(avg_loss)
-    acc_list.append(acc)
+    for batch_num, (feats, labels) in enumerate(train_dataloader):
+        print(feats.shape)
+        print(labels)
+        break
+    
+    # Training config
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = StockCNN().to(device)
+    criterion = nn.NLLLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
-    print(f"Epoch {epoch+1}: Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+    # Early stopping params
+    early_stop_patience = 2
+    best_loss = float('inf')
+    patience_counter = 0
+    num_epochs = 10
+    train_loss_list, acc_list = [], []
 
-    # Early stopping
-    if avg_loss < best_loss:
-        best_loss = avg_loss
-        patience_counter = 0
-    else:
-        patience_counter += 1
-        if patience_counter >= early_stop_patience:
-            print("Early stopping triggered.")
-            break
+    print("Training...")
+    
+    for epoch in range(num_epochs):
+        model.train()
+        total_loss, correct, total = 0, 0, 0
+        for imgs, labels in train_dataloader:
+            imgs, labels = imgs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(imgs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            accuracy_rate = torch.sum(torch.argmax(outputs, dim=1) == labels).item() / len(labels)
+            print(f"Epoch {epoch+1}, Batch {batch_num+1}: Loss={loss.item():.4f}, Accuracy={accuracy_rate:.4f}")
+            
+            total_loss += loss.item() * imgs.size(0)
+            _, predicted = torch.max(outputs, 1)
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
 
-# Final evaluation
-model.eval()
-total, correct = 0, 0
-with torch.no_grad():
-    for imgs, labels in test_dataloader:
-        imgs, labels = imgs.to(device), labels.to(device)
-        outputs = model(imgs)
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-print(f"Test Accuracy: {correct / total:.4f}")
+        avg_loss = total_loss / total
+        acc = correct / total
+        train_loss_list.append(avg_loss)
+        acc_list.append(acc)
 
-# Plot loss and accuracy
-plt.figure(figsize=(10,4))
-plt.subplot(1,2,1)
-plt.plot(train_loss_list, label="Train Loss")
-plt.legend()
-plt.subplot(1,2,2)
-plt.plot(acc_list, label="Train Accuracy")
-plt.legend()
-plt.show()
+        print(f"Epoch {epoch+1}: Loss={avg_loss:.4f}, Accuracy={acc:.4f}")
+
+        # Early stopping
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= early_stop_patience:
+                print("Early stopping triggered.")
+                break
+
+    # Final evaluation
+    model.eval()
+    total, correct = 0, 0
+    with torch.no_grad():
+        for imgs, labels in test_dataloader:
+            imgs, labels = imgs.to(device), labels.to(device)
+            outputs = model(imgs)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    print(f"Test Accuracy: {correct / total:.4f}")
+
+    # Plot loss and accuracy
+    plt.figure(figsize=(10,4))
+    plt.subplot(1,2,1)
+    plt.plot(train_loss_list, label="Train Loss")
+    plt.legend()
+    plt.subplot(1,2,2)
+    plt.plot(acc_list, label="Train Accuracy")
+    plt.legend()
+    plt.show()
